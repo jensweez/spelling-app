@@ -10,7 +10,47 @@ export default async function handler(req, res) {
   try {
     let body = req.body;
     if (typeof body === 'string') body = JSON.parse(body);
-    const { imageBase64, mediaType } = body || {};
+    const { imageBase64, mediaType, wordList } = body || {};
+
+    // ── Word list spell check (manual entry) ──
+    if (wordList && Array.isArray(wordList)) {
+      const spellRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: `Check if any of these words are misspelled. Return ONLY a JSON array of corrections for words that are actually misspelled. If all words are correct, return [].
+
+Words to check: ${wordList.join(', ')}
+
+Each correction must have:
+- "wrong": the misspelled word as provided
+- "correct": the correct spelling
+- "context": ""
+
+Only flag genuine misspellings. Do not flag proper nouns or intentional alternate spellings.`,
+          }],
+        }),
+      });
+
+      const spellData = await spellRes.json();
+      const raw = spellData.content?.[0]?.text ?? '[]';
+      let corrections;
+      try {
+        corrections = JSON.parse(raw);
+      } catch {
+        const match = raw.match(/\[[\s\S]*\]/);
+        corrections = match ? JSON.parse(match[0]) : [];
+      }
+      return res.status(200).json({ corrections });
+    }
 
     if (!imageBase64 || !mediaType) {
       return res.status(400).json({ error: 'Missing imageBase64 or mediaType' });
