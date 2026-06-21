@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --pink:#FF4D8D;--pink-dark:#CC2266;   
+  --pink:#FF4D8D;--pink-dark:#CC2266;
   --blue:#3B82F6;--blue-dark:#1D4ED8;
   --yellow:#FFD93D;--yellow-dark:#E5B800;
   --mint:#00C9A7;--mint-dark:#009F83;
@@ -640,7 +640,7 @@ document.getElementById('tab-manual').addEventListener('click',()=>{
 });
 
 // ── Manual word entry ──
-document.getElementById('manual-btn').addEventListener('click',()=>{
+document.getElementById('manual-btn').addEventListener('click',async()=>{
   const raw=document.getElementById('word-list-input').value;
   const wordList=raw.split('\n').map(w=>w.trim().toLowerCase()).filter(w=>w.length>0);
   if(wordList.length===0){
@@ -649,10 +649,40 @@ document.getElementById('manual-btn').addEventListener('click',()=>{
     e.style.display='block';
     return;
   }
-  // Build words array — for manual entry wrong=correct (no misspelling context needed)
-  words=wordList.map(w=>({wrong:w,correct:w,context:''}));
-  transcript='';
-  show('modes');
+
+  // Show loading
+  document.getElementById('upload-error').style.display='none';
+  show('loading');
+  document.getElementById('loading-msg').textContent='Checking your words...';
+  document.getElementById('loading-sub').textContent='Making sure everything is spelled right ✨';
+
+  try{
+    const res=await fetch(API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({wordList})
+    });
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Server error');
+
+    if(data.corrections&&data.corrections.length>0){
+      // Some words were misspelled — show results screen
+      words=data.corrections;
+      transcript='';
+      renderResults();
+      show('results');
+    }else{
+      // All correct — go straight to game
+      words=wordList.map(w=>({wrong:w,correct:w,context:''}));
+      transcript='';
+      show('modes');
+    }
+  }catch(err){
+    show('upload');
+    const e=document.getElementById('upload-error');
+    e.textContent='Something went wrong: '+err.message;
+    e.style.display='block';
+  }
 });
 document.getElementById('worksheet-btn').addEventListener('click',()=>{
   document.getElementById('ws-overlay').style.display='flex';
