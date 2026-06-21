@@ -12,7 +12,38 @@ export default async function handler(req, res) {
     if (typeof body === 'string') body = JSON.parse(body);
     const { imageBase64, mediaType, wordList } = body || {};
 
-    // ── Word list spell check (manual entry) ──
+    // ── Generate similar wrong choices for multiple choice game ──
+    const { distractorWord } = body || {};
+    if (distractorWord) {
+      const distRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 256,
+          messages: [{
+            role: 'user',
+            content: `Generate exactly 3 plausible misspellings of the word "${distractorWord}" that look similar to the correct spelling. These should be common mistakes a child might make — swapped letters, missing letters, extra letters, or phonetic errors.
+
+Return ONLY a JSON array of 3 strings, nothing else. Example for "friend": ["freind","frend","friand"]`,
+          }],
+        }),
+      });
+      const distData = await distRes.json();
+      const raw = distData.content?.[0]?.text ?? '[]';
+      let distractors;
+      try {
+        distractors = JSON.parse(raw);
+      } catch {
+        const match = raw.match(/\[[\s\S]*\]/);
+        distractors = match ? JSON.parse(match[0]) : [];
+      }
+      return res.status(200).json({ distractors });
+    }
     if (wordList && Array.isArray(wordList)) {
       const spellRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',

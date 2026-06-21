@@ -562,15 +562,35 @@ function renderTypeGame(w,card,btnRow){
 }
 
 function renderChoiceGame(w,card,btnRow){
-  const options=shuffle([w.correct,...wrongChoices(w.correct,words)]);
-  card.innerHTML=`<div class="game-label">Which spelling is correct?</div><div style="font-size:1.1rem;font-weight:800;color:var(--muted)">The word is: <span style="color:var(--text);font-family:'Fredoka One',sans-serif">"${w.wrong}"</span></div><div class="choices">${options.map(o=>`<button class="choice-btn" data-val="${o}">${o}</button>`).join('')}</div><div class="feedback"></div>`;
-  card.querySelectorAll('.choice-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const correct=btn.dataset.val===w.correct;
-      card.querySelectorAll('.choice-btn').forEach(b=>{b.disabled=true;if(b.dataset.val===w.correct)b.classList.add('correct');else if(b===btn&&!correct)b.classList.add('wrong')});
-      showFeedback(card,correct,w.correct);btnRow.appendChild(makeNextBtn());
+  // Show loading state while fetching distractors
+  card.innerHTML=`<div class="game-label">Which spelling is correct?</div><div style="font-size:1.1rem;font-weight:800;color:var(--muted)">The word is: <span style="color:var(--text);font-family:'Fredoka One',sans-serif">"${w.wrong}"</span></div><div style="color:var(--muted);font-size:.9rem;font-weight:700">Loading choices...</div>`;
+
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({distractorWord:w.correct})})
+    .then(r=>r.json())
+    .then(data=>{
+      const distractors=data.distractors&&data.distractors.length===3?data.distractors:wrongChoices(w.correct,words);
+      const options=shuffle([w.correct,...distractors]);
+      card.innerHTML=`<div class="game-label">Which spelling is correct?</div><div style="font-size:1.1rem;font-weight:800;color:var(--muted)">The word is: <span style="color:var(--text);font-family:'Fredoka One',sans-serif">"${w.wrong}"</span></div><div class="choices">${options.map(o=>`<button class="choice-btn" data-val="${o}">${o}</button>`).join('')}</div><div class="feedback"></div>`;
+      card.querySelectorAll('.choice-btn').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          const correct=btn.dataset.val===w.correct;
+          card.querySelectorAll('.choice-btn').forEach(b=>{b.disabled=true;if(b.dataset.val===w.correct)b.classList.add('correct');else if(b===btn&&!correct)b.classList.add('wrong')});
+          showFeedback(card,correct,w.correct);btnRow.appendChild(makeNextBtn());
+        });
+      });
+    })
+    .catch(()=>{
+      // Fallback to random choices if API fails
+      const options=shuffle([w.correct,...wrongChoices(w.correct,words)]);
+      card.innerHTML=`<div class="game-label">Which spelling is correct?</div><div style="font-size:1.1rem;font-weight:800;color:var(--muted)">The word is: <span style="color:var(--text);font-family:'Fredoka One',sans-serif">"${w.wrong}"</span></div><div class="choices">${options.map(o=>`<button class="choice-btn" data-val="${o}">${o}</button>`).join('')}</div><div class="feedback"></div>`;
+      card.querySelectorAll('.choice-btn').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          const correct=btn.dataset.val===w.correct;
+          card.querySelectorAll('.choice-btn').forEach(b=>{b.disabled=true;if(b.dataset.val===w.correct)b.classList.add('correct');else if(b===btn&&!correct)b.classList.add('wrong')});
+          showFeedback(card,correct,w.correct);btnRow.appendChild(makeNextBtn());
+        });
+      });
     });
-  });
 }
 
 function renderScrambleGame(w,card,btnRow){
